@@ -57,7 +57,6 @@ const exec_promise = (exec_command, options) => {
   })
   .catch((err) => {
     console.log((options.error_message || 'Error'), ':', err)
-    throw err;
   })
 }
 
