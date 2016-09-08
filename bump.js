@@ -138,6 +138,6 @@ const ver_cmd = argv._ ? argv._[0] : 'patch'
 if (commands.indexOf(ver_cmd) > -1){
   bump_version(ver_cmd)
 } else {
-  throw new Error('not a valid command, please choose one of : ' + commands)
+  console.error('not a valid command, please choose one of : ', commands)
 }
 
