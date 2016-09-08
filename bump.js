@@ -83,7 +83,7 @@ const bump_version = (ver_cmd) => {
       .then(bump_handler(ver_cmd))
   } else {
     package_version_usable(process.env.npm_package_version)
-      .then((package_version) => bump_handler(package_version))
+      .then((package_version) => bump_handler('"' + package_version + '"'))
       .catch((err) => console.log(err))
   }
 
@@ -119,7 +119,7 @@ const package_version_usable = function(package_version) {
     exec('git describe --tags `git rev-list --tags --max-count=1 --remotes`', (error, latest_tag, stderr) => {
       latest_tag = latest_tag.trim()
         
-      let is_usable = semver.gte(package_version, latest_tag)
+      let is_usable = semver.gt(package_version, latest_tag)
       console.log('will update and tag git repo from "' + latest_tag + '" to "' + package_version + '"? :', is_usable)
 
       if (is_usable){
