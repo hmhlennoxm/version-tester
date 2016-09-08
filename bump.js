@@ -9,11 +9,13 @@
  */
 
 const argv = require('yargs').argv
+
 const exec = require('child_process').exec
 const semver = require('semver')
 
 const package_cmd = 'package'
-var commands = ['patch', 'minor', 'major', package_cmd]
+const commands = ['patch', 'minor', 'major', package_cmd]
+
 
 /**
  * Will semi-intelligently bump the package.json version and push an associated tag to git
@@ -43,21 +45,21 @@ var commands = ['patch', 'minor', 'major', package_cmd]
  *
  */
 
-const ver_cmd = argv._ ? argv._[0] : 'patch'
 
-// check is valid command
-
-// check is valid semver
-// yes? then check is greater than latest git tag
-
-// pass ver_cmd to bump_version
-
-if (commands.indexOf(ver_cmd) > -1){
-  bump_version(ver_cmd)
-} else {
-  throw new Error('not a valid command, please choose one of : ' + commands)
+const exec_promise = (exec_command, options) => {
+  return new Promise((resolve, reject) => {
+    exec(exec_command, function(error, stdout, stderr) {
+      resolve(error, stdout, stderr)
+    })
+  })
+  .then((data) => {
+    console.log('got here', data)
+  })
+  .catch((err) => {
+    console.log((options.error_message || 'Error'), ':', err)
+    throw err;
+  })
 }
-
 
 /**
  *
@@ -68,34 +70,30 @@ const bump_version = (ver_cmd) => {
   // then bump the version with the requested command, adding a meaningful message
   // push the new version and tag to github
 
-  let sync_tag = ver_cmd !== package_cmd
+  let sync_tag = (ver_cmd !== package_cmd)
+
+  let bump_handler = (cmd) => {
+    console.log('cmd : ', cmd)
+    exec_promise('npm version ' + cmd + ' -m "' + cmd + ' bumped tag/version to %s"', { error_message: 'Could not bump version' })
+      .then(exec_promise('git push --follow-tags', { error_message: 'Could not push version and tags to git' } ))  
+  }  
 
   if (sync_tag) {
-    exec_promise('npm version from-git', { error_message: 'Could not fetch latest tag from git' } )  
+    exec_promise('npm version from-git', { error_message: 'Could not fetch latest tag from git' } )
+      .then(bump_handler(ver_cmd))
   } else {
-    
+    package_version_usable(process.env.npm_package_version)
+      .then((package_version) => bump_handler(package_version))
+      .catch((err) => console.log(err))
   }
 
-  exec_promise('npm version ' + ver_cmd + ' -m "' + ver_cmd + ' bumped tag/version to %s"', { error_message: 'Could not bump version' })
 
-  exec_promise('git push --follow-tags', { error_message: 'Could not push version and tags to git' } )
-
-}
-
-
-const exec_promise = (exec_command, options) => {
-  return new Promise((resolve, reject) => {
-    exec(exec_command, function(error, stdout, stderr) {
-      resolve(stdout)
-    })
-  }).catch((err) => {
-    console.log((options.error_message || 'Error'), ':', err)
-    throw err;
-  })
 }
 
 
 /**
+ * Checks the version provided in the package.json is valid and exceeds the latest git tag
+ *
  * NOTE :
  * When specifying the required tag you must use semver. If you want to use pre-release versioning or build metadata
  * please refer to the documentation below
@@ -109,10 +107,37 @@ const exec_promise = (exec_command, options) => {
  *    your metadata should be of the form
  *        1.2.3+1.2.3, 1.2.3+zero.sha.1
  *
- * @param requested_version
  */
-var verify_package_version = function(requested_version) {
-  // pull the latest tag from github
-  // ensure that the requested tag is 'larger' than the current one
-  // run in tag
+const package_version_usable = function(package_version) {
+
+  return new Promise((resolve, reject) => {
+
+    if (!semver.valid(package_version)){
+      reject('Version specified in package.json is not valid semver : ' + package_version)
+    }
+
+    exec('git describe --tags `git rev-list --tags --max-count=1 --remotes`', (error, latest_tag, stderr) => {
+      latest_tag = latest_tag.trim()
+        
+      let is_usable = semver.gte(package_version, latest_tag)
+      console.log('will update and tag git repo from "' + latest_tag + '" to "' + package_version + '"? :', is_usable)
+
+      if (is_usable){
+        resolve(package_version)
+      } else {
+        reject('The proposed version "' + package_version + '" must be greater than ther existing latest tag "' + latest_tag + '"')
+      }
+    })
+  })
 }
+
+
+const ver_cmd = argv._ ? argv._[0] : 'patch'
+
+
+if (commands.indexOf(ver_cmd) > -1){
+  bump_version(ver_cmd)
+} else {
+  throw new Error('not a valid command, please choose one of : ' + commands)
+}
+
