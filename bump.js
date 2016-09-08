@@ -49,6 +49,9 @@ const commands = ['patch', 'minor', 'major', package_cmd]
 const exec_promise = (exec_command, options) => {
   return new Promise((resolve, reject) => {
     exec(exec_command, function(error, stdout, stderr) {
+      if (error){
+        reject(error)
+      }
       resolve(error, stdout, stderr)
     })
   })
