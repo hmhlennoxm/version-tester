@@ -68,11 +68,16 @@ const exec_promise = (exec_command, options) => {
  * @param ver_cmd
  */
 const bump_version = (ver_cmd) => {
+
+  // TODO : we should also expect the command to accept a commit sha which we will tag against, so we don't tag #develop directly (local HEAD may do that anyway, but lets be certain)
+
   // first make sure the package.json is in sync with the git version
   // then bump the version with the requested command, adding a meaningful message
   // push the new version and tag to github
 
   let sync_tag = (ver_cmd !== package_cmd)
+
+
 
   let bump_handler = (cmd) => {
     exec_promise('npm version ' + cmd + ' -m "' + cmd + ' bumped tag/version to %s"', { error_message: 'Could not bump version' })
@@ -147,7 +152,7 @@ const package_version_usable = function(package_version) {
         resolve(package_version)
       } else {
         console.error('it is NOT usable - rejecting!!')
-        reject('The proposed version "' + package_version + '" must be greater than ther existing latest tag "' + latest_tag + '"')
+        reject('The proposed version "' + package_version + '" must be greater than the existing latest tag "' + latest_tag + '"')
       }
     })
   })
