@@ -1,7 +1,5 @@
 #! /usr/bin/env node
 
-// TODO : first need to check "git status --untracked-files=no --porcelain" which will return nothing if the git working directory is clean
-
 // TODO : we should also expect the command to accept a commit sha which we will tag against, so we don't tag #develop directly (local HEAD may do that anyway, but lets be certain)
 
 /**
@@ -14,11 +12,17 @@
 
 const argv = require('yargs').argv
 
-const exec = require('child_process').exec
+const execSync = require('child_process').execSync
 const semver = require('semver')
 
 const package_cmd = 'package'
 const commands = ['patch', 'minor', 'major', package_cmd]
+
+const exec_options = {
+  timeout: 10000,
+  stdio: [0,1,2],
+  encoding: 'utf8'
+}
 
 
 /**
@@ -26,45 +30,96 @@ const commands = ['patch', 'minor', 'major', package_cmd]
  *
  * Usage:
  *
- *      just patch bump ie. 1.0.1 -> 1.0.2
+ *      just patch bump ie. 1.0.99 -> 1.0.100
  *
  *        npm run bump
  *
  *      specify which type of version bump you want
  *
- *        patch:
+ *        patch: (ie. 1.0.123 -> 1.0.124)
  *        npm run bump -- patch
  *
- *        minor: (ie. 1.2.3 -> 1.3.0)
+ *        minor: (ie. 1.2.345-alpha.2 -> 1.3.0)
  *        npm run bump -- minor
  *
- *        major: (ie. 1.2.3 -> 2.0.0)
+ *        major: (ie. 1.234.5 -> 2.0.0)
  *        npm run bump -- major
  *
  *
- *      specify the tag required
+ *      bump using the tag specified in package.json
  *
- *        npm run bump -- v1.2.4
- *        npm run bump -- v1.3.0-alpha.2
- *
+ *        npm run bump -- package
  */
 
+/**
+ * Uses execSync to run the command passed to it
+ * Throws any errors, but prepends the message to provide context
+ * @param command
+ * @param message
+ * @returns {*}
+ */
+var execSync_handler = (command, message) => {
+  try {
+    var result = execSync(command, exec_options)
+    console.log('execSync : ', result)
+    return result
+  }
+  catch (err) {
+    console.error(message, '------\n', command, '------\n', err)
+    throw err
+  }
+}
 
-const exec_promise = (exec_command, options) => {
-  return new Promise((resolve, reject) => {
-    exec(exec_command, function(error, stdout, stderr) {
-      if (error){
-        reject(error)
-      }
-      resolve(error, stdout, stderr)
-    })
-  })
-  .then((data) => {
-    console.log('got here', data)
-  })
-  .catch((err) => {
-    console.log((options.error_message || 'Error'), ':', err)
-  })
+/**
+ * Bumps the version using the specified command or version
+ * @param cmd - can be an 'npm version' command (patch, minor, major) or a valid semver version number
+ */
+const bump_with_command = (cmd_or_version) => {
+
+  // TODO: do we need to roll back attempted tag?
+  execSync_handler('npm version ' + cmd_or_version + ' -m "' + cmd_or_version + ' bumped tag/version to %s"', 'Could not bump version')
+
+  execSync_handler('git push --follow-tags', 'Could not push version and tags to git')
+
+}
+
+/**
+ * Returns true if there are any pending additions or commits
+ *
+ * npm version bump requires a commit and push and therefore has to be run in
+ * a git working directory with no pending changes or commits
+ * @returns {boolean}
+ */
+const is_working_directory_dirty = () => {
+  let git_status = execSync('git status --untracked-files=no --porcelain')
+  return (git_status !== '')
+}
+
+/**
+ * Bumps the repo version to match the version specified in the package.json
+ * BUT first checks the package.json version is valid and greater than repo version
+ */
+const bump_with_package = (check_pkg_result) => {
+
+  if (check_pkg_result.is_greater) {
+    // the package version was acceptable, we'll attempt a bump
+    bump_with_command(check_pkg_result.version)
+  } else {
+    // package version was either invalid semver or not greater than latest repo tag
+    console.error(check_pkg_result.message)
+  }
+
+}
+
+/**
+ * Bumps the repo version by specified command : patch, minor, major
+ * BUT first checks updates the local package.json version if required
+ */
+const bump_repo_version = (check_pkg_result, ver_cmd) => {
+  if (!check_pkg_result.is_equal) {
+    execSync_handler('npm version from-git', 'Could not fetch latest tag from git')
+  }
+  bump_with_command(ver_cmd)
 }
 
 /**
@@ -73,50 +128,13 @@ const exec_promise = (exec_command, options) => {
  */
 const bump_version = (ver_cmd) => {
 
+  let check_pkg_result = package_version_usable(process.env.npm_package_version)
 
-
-  // first make sure the package.json is in sync with the git version
-  // then bump the version with the requested command, adding a meaningful message
-  // push the new version and tag to github
-
-  let sync_tag = (ver_cmd !== package_cmd)
-
-
-
-  let bump_handler = (cmd) => {
-    exec_promise('npm version ' + cmd + ' -m "' + cmd + ' bumped tag/version to %s"', { error_message: 'Could not bump version' })
-      .then(exec_promise('git push --follow-tags', { error_message: 'Could not push version and tags to git' } ))  
-  }
-
-
-  console.log('cmd : ', ver_cmd)
-
-  if (sync_tag) {
-    console.log('yes, sync_tag if we can')
-    package_version_usable(process.env.npm_package_version)
-      // .then(() => {
-      //   console.log('then hit')
-      // })
-      // .catch(() => {
-      //   console.error('catch hit')
-      // })
-      // if the local package version matches the latest tag then running 'npm version from-git' throws an error
-      .then(() => {
-        console.log('then 2 hit')
-        exec_promise('npm version from-git', { error_message: 'Could not fetch latest tag from git' } )
-      })
-      .catch(() => {
-        console.error('catch 2 hit')
-        bump_handler(ver_cmd)
-          .catch((err) => console.log('catch 3 : ', err))
-      })
+  if (ver_cmd === package_cmd) {
+    bump_with_package(check_pkg_result)
   } else {
-    console.log('no, we are providing tag')
-    package_version_usable(process.env.npm_package_version)
-      .then((package_version) => bump_handler('"' + package_version + '"'))
-      .catch((err) => console.log('branch 2 error caught : ', err))
+    bump_repo_version(check_pkg_result, ver_cmd)
   }
-
 
 }
 
@@ -138,29 +156,43 @@ const bump_version = (ver_cmd) => {
  *        1.2.3+1.2.3, 1.2.3+zero.sha.1
  *
  */
-const package_version_usable = function(package_version) {
+const package_version_usable = (package_version) => {
 
-  return new Promise((resolve, reject) => {
-
-    if (!semver.valid(package_version)){
-      reject('Version specified in package.json is not valid semver : ' + package_version)
+  if (!semver.valid(package_version)) {
+    return {
+      version: null,
+      is_greater: false,
+      is_equal: false,
+      message: 'Version specified in package.json is not valid semver : ' + package_version
     }
+  }
 
-    exec('git describe --tags --abbrev=0 `git rev-list --tags --max-count=1 --remotes`', (error, latest_tag, stderr) => {
-      latest_tag = latest_tag.trim()
-        
-      let is_usable = semver.gt(package_version, latest_tag)
-      console.log('will update and tag git repo from "' + latest_tag + '" to "' + package_version + '"? :', is_usable)
+  var latest_tag = execSync('git describe --tags --abbrev=0 `git rev-list --tags --max-count=1 --remotes`', exec_options)
+  latest_tag = latest_tag.trim()
 
-      if (is_usable){
-        console.error('it is usable - resolving')
-        resolve(package_version)
-      } else {
-        console.error('it is NOT usable - rejecting!!')
-        reject('The proposed version "' + package_version + '" must be greater than the existing latest tag "' + latest_tag + '"')
-      }
-    })
-  })
+  let is_greater = semver.gt(package_version, latest_tag)
+  let is_equal = semver.eq(package_version, latest_tag)
+
+  return {
+    version: package_version,
+    is_greater: is_greater,
+    is_equal: is_equal
+  }
+
+
+  // if (is_usable){
+  //   console.error('version "' + package_version + '" is greater than "' + latest_tag + '" - will update to version "' + package_version + "')
+  //   return { version: package_version }
+  // } else {
+  //   console.error()
+  //   return { version : null, message: 'version "' + package_version + '" is NOT greater than "' + latest_tag}
+  // }
+}
+
+// before we run anything we want to check if the git working directory is clean
+if (is_working_directory_dirty()) {
+  console.error('CANNOT RUN - please commit your pending changes')
+  return 0
 }
 
 console.log(argv._)
