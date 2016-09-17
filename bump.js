@@ -76,10 +76,12 @@ var execSync_handler = (command, message) => {
  */
 const bump_with_command = (cmd_or_version) => {
   // TODO: do we need to roll back attempted tag?
+  console.info('Attempting to run "npm version ' + cmd_or_version + '"')
   execSync_handler('npm version ' + cmd_or_version + ' -m "' + cmd_or_version + ' bumped tag/version to %s"', 'Could not bump version')
 
+  console.info('Pushing tags to repo...')
   execSync_handler('git push --follow-tags', 'Could not push version and tags to git')
-
+  console.info('Success!')
 }
 
 /**
