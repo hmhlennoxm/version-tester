@@ -61,7 +61,6 @@ const exec_options = {
 var execSync_handler = (command, message) => {
   try {
     var result = execSync(command, exec_options)
-    console.log('execSync : ', result)
     return result
   }
   catch (err) {
@@ -93,7 +92,6 @@ const bump_with_command = (cmd_or_version) => {
  */
 const is_working_directory_dirty = () => {
   let git_status = execSync('git status --untracked-files=no --porcelain', exec_options)
-  console.log('git_status : ', git_status)
   return (git_status !== null && git_status !== '')
 }
 
