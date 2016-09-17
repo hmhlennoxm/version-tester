@@ -92,6 +92,7 @@ const bump_with_command = (cmd_or_version) => {
  */
 const is_working_directory_dirty = () => {
   let git_status = execSync('git status --untracked-files=no --porcelain')
+  console.log('git_status : ', git_status)
   return (git_status !== '')
 }
 
