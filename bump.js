@@ -20,7 +20,7 @@ const commands = ['patch', 'minor', 'major', package_cmd]
 
 const exec_options = {
   timeout: 10000,
-  stdio: [0,1,2],
+  // stdio: [0,1,2],
   encoding: 'utf8'
 }
 
@@ -75,7 +75,6 @@ var execSync_handler = (command, message) => {
  * @param cmd - can be an 'npm version' command (patch, minor, major) or a valid semver version number
  */
 const bump_with_command = (cmd_or_version) => {
-
   // TODO: do we need to roll back attempted tag?
   execSync_handler('npm version ' + cmd_or_version + ' -m "' + cmd_or_version + ' bumped tag/version to %s"', 'Could not bump version')
 
@@ -91,9 +90,9 @@ const bump_with_command = (cmd_or_version) => {
  * @returns {boolean}
  */
 const is_working_directory_dirty = () => {
-  let git_status = execSync('git status --untracked-files=no --porcelain')
+  let git_status = execSync('git status --untracked-files=no --porcelain', exec_options)
   console.log('git_status : ', git_status)
-  return (git_status !== '')
+  return (git_status !== null && git_status !== '')
 }
 
 /**
@@ -101,7 +100,6 @@ const is_working_directory_dirty = () => {
  * BUT first checks the package.json version is valid and greater than repo version
  */
 const bump_with_package = (check_pkg_result) => {
-
   if (check_pkg_result.is_greater) {
     // the package version was acceptable, we'll attempt a bump
     bump_with_command(check_pkg_result.version)
@@ -109,7 +107,6 @@ const bump_with_package = (check_pkg_result) => {
     // package version was either invalid semver or not greater than latest repo tag
     console.error(check_pkg_result.message)
   }
-
 }
 
 /**
@@ -128,23 +125,21 @@ const bump_repo_version = (check_pkg_result, ver_cmd) => {
  * @param ver_cmd
  */
 const bump_version = (ver_cmd) => {
-
-  let check_pkg_result = package_version_usable(process.env.npm_package_version)
+  let check_pkg_result = package_version_check(process.env.npm_package_version)
 
   if (ver_cmd === package_cmd) {
     bump_with_package(check_pkg_result)
   } else {
     bump_repo_version(check_pkg_result, ver_cmd)
   }
-
 }
 
 
 /**
- * Checks the version provided in the package.json is valid and exceeds the latest git tag
+ * Checks the version provided in the package.json is valid and determines if it both is equal to or greater than latest git tag
  *
  * NOTE :
- * When specifying the required tag you must use semver. If you want to use pre-release versioning or build metadata
+ * When specifying the required tag in package.json you must use semver. If you want to use pre-release versioning or build metadata
  * please refer to the documentation below
  * 
  *    http://semver.org/#spec-item-9
@@ -157,7 +152,7 @@ const bump_version = (ver_cmd) => {
  *        1.2.3+1.2.3, 1.2.3+zero.sha.1
  *
  */
-const package_version_usable = (package_version) => {
+const package_version_check = (package_version) => {
 
   if (!semver.valid(package_version)) {
     return {
@@ -179,15 +174,6 @@ const package_version_usable = (package_version) => {
     is_greater: is_greater,
     is_equal: is_equal
   }
-
-
-  // if (is_usable){
-  //   console.error('version "' + package_version + '" is greater than "' + latest_tag + '" - will update to version "' + package_version + "')
-  //   return { version: package_version }
-  // } else {
-  //   console.error()
-  //   return { version : null, message: 'version "' + package_version + '" is NOT greater than "' + latest_tag}
-  // }
 }
 
 // before we run anything we want to check if the git working directory is clean
@@ -196,8 +182,10 @@ if (is_working_directory_dirty()) {
   return 0
 }
 
+// grab the arguments
 console.log(argv._)
 
+// if we pass args then only grab the first one, and if no arg then just use 'patch'
 const ver_cmd = (argv._ && argv._.length > 0) ? argv._[0] : 'patch'
 
 if (commands.indexOf(ver_cmd) > -1){
