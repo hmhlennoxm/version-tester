@@ -1,5 +1,9 @@
 #! /usr/bin/env node
 
+// TODO : first need to check "git status --untracked-files=no --porcelain" which will return nothing if the git working directory is clean
+
+// TODO : we should also expect the command to accept a commit sha which we will tag against, so we don't tag #develop directly (local HEAD may do that anyway, but lets be certain)
+
 /**
  * Written to target node 6.3.0
  * Uses:
@@ -69,7 +73,7 @@ const exec_promise = (exec_command, options) => {
  */
 const bump_version = (ver_cmd) => {
 
-  // TODO : we should also expect the command to accept a commit sha which we will tag against, so we don't tag #develop directly (local HEAD may do that anyway, but lets be certain)
+
 
   // first make sure the package.json is in sync with the git version
   // then bump the version with the requested command, adding a meaningful message
@@ -83,6 +87,7 @@ const bump_version = (ver_cmd) => {
     exec_promise('npm version ' + cmd + ' -m "' + cmd + ' bumped tag/version to %s"', { error_message: 'Could not bump version' })
       .then(exec_promise('git push --follow-tags', { error_message: 'Could not push version and tags to git' } ))  
   }
+
 
   console.log('cmd : ', ver_cmd)
 
