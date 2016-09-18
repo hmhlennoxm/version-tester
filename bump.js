@@ -74,13 +74,40 @@ var execSync_handler = (command, message) => {
  * @param cmd - can be an 'npm version' command (patch, minor, major) or a valid semver version number
  */
 const bump_with_command = (cmd_or_version, commit_sha) => {
-  // TODO: do we need to roll back attempted tag?
-  console.info('Attempting to run "npm version ' + cmd_or_version + '"')
-  execSync_handler('npm version ' + cmd_or_version + ' -m "' + cmd_or_version + ' bumped tag/version to %s"', 'Could not bump version')
 
-  console.info('Pushing tags to repo...')
-  execSync_handler('git push --follow-tags', 'Could not push version and tags to git')
-  console.info('Success!')
+  try {
+
+    var head_sha = execSync('git rev-parse HEAD') + " "
+    head_sha = head_sha.trim()
+
+    commit_sha = commit_sha || head_sha
+
+    console.log('Finding the current branch')
+    var current_branch = execSync('git rev-parse --abbrev-ref HEAD') + " "
+    current_branch = current_branch.trim()
+
+    console.log('Resetting git HEAD to point at git commit SHA')
+    console.info('git update-ref -m "reset: Reset --' + current_branch + '-- to --' + commit_sha + '--" refs/heads/' + current_branch + ' ' + commit_sha)
+    execSync('git update-ref -m "reset: Reset ' + current_branch + ' to ' + commit_sha + '" refs/heads/' + current_branch + ' ' + commit_sha)
+
+
+    // TODO: do we need to roll back attempted tag?
+    console.log('Attempting to run "npm version ' + cmd_or_version + '"')
+    execSync_handler('npm version ' + cmd_or_version + ' -m "' + cmd_or_version + ' bumped tag/version to %s"', 'Could not bump version')
+
+    console.log('Pushing tags to repo...')
+    execSync_handler('git push --follow-tags', 'Could not push version and tags to git')
+
+    console.log('Now reset HEAD back to original SHA')
+    execSync('git reset --hard ' + head_sha)
+
+    console.info('Success!')
+  }
+  catch (err) {
+    console.error('Error trying to bump version', err)
+    throw err
+  }
+
 }
 
 /**
@@ -186,9 +213,9 @@ if (is_working_directory_dirty()) {
 console.log(argv._)
 
 if (!argv.sha) {
-  console.info('WARNING - it is strongly advised that you provide a commit SHA or you may not be able to push your new tags')
+  console.info('no commit SHA provided, will use latest commit of local git workspace')
 }
-const commit_sha = argv.sha
+const commit_sha = argv.sha || null
 
 // if we pass args then only grab the first one, and if no arg then just use 'patch'
 const ver_cmd = (argv._ && argv._.length > 0) ? argv._[0] : 'patch'
