@@ -143,8 +143,8 @@ const bump_with_package = (check_pkg_result, commit_sha) => {
 const bump_repo_version = (check_pkg_result, ver_cmd, commit_sha) => {
   if (!check_pkg_result.is_equal) {
     console.log('Local tag will be synced from repo')
-    execSync_handler('npm version from-git', 'Could not fetch latest tag from git')
-    console.log('New package version : ', )
+    let new_version = execSync_handler('npm version from-git', 'Could not fetch latest tag from git')
+    console.log('New package version : ', new_version)
   }
   bump_with_command(ver_cmd, commit_sha)
 }
