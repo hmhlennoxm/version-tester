@@ -195,6 +195,9 @@ const package_version_check = (package_version) => {
   var latest_tag = execSync('git describe --tags --abbrev=0 `git rev-list --tags --max-count=1 --remotes`', exec_options)
   latest_tag = latest_tag.trim()
 
+  console.log('Testing package version and repo version')
+  console.log('    package.json :', package_version)
+  console.log('    repo version :', latest_tag)
   let is_greater = semver.gt(package_version, latest_tag)
   let is_equal = semver.eq(package_version, latest_tag)
 
