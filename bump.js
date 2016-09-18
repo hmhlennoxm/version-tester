@@ -199,7 +199,9 @@ const package_version_check = (package_version) => {
   console.log('    package.json :', package_version)
   console.log('    repo version :', latest_tag)
   let is_greater = semver.gt(package_version, latest_tag)
+  console.log('        is package.json version greater? :', is_greater)
   let is_equal = semver.eq(package_version, latest_tag)
+  console.log('        are package.json and repo equal? :', is_equal)
 
   return {
     version: package_version,
