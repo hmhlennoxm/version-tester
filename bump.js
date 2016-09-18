@@ -73,7 +73,7 @@ var execSync_handler = (command, message) => {
  * Bumps the version using the specified command or version
  * @param cmd - can be an 'npm version' command (patch, minor, major) or a valid semver version number
  */
-const bump_with_command = (cmd_or_version) => {
+const bump_with_command = (cmd_or_version, commit_sha) => {
   // TODO: do we need to roll back attempted tag?
   console.info('Attempting to run "npm version ' + cmd_or_version + '"')
   execSync_handler('npm version ' + cmd_or_version + ' -m "' + cmd_or_version + ' bumped tag/version to %s"', 'Could not bump version')
@@ -99,10 +99,10 @@ const is_working_directory_dirty = () => {
  * Bumps the repo version to match the version specified in the package.json
  * BUT first checks the package.json version is valid and greater than repo version
  */
-const bump_with_package = (check_pkg_result) => {
+const bump_with_package = (check_pkg_result, commit_sha) => {
   if (check_pkg_result.is_greater) {
     // the package version was acceptable, we'll attempt a bump
-    bump_with_command(check_pkg_result.version)
+    bump_with_command(check_pkg_result.version, commit_sha)
   } else {
     // package version was either invalid semver or not greater than latest repo tag
     console.error(check_pkg_result.message)
@@ -113,24 +113,24 @@ const bump_with_package = (check_pkg_result) => {
  * Bumps the repo version by specified command : patch, minor, major
  * BUT first checks updates the local package.json version if required
  */
-const bump_repo_version = (check_pkg_result, ver_cmd) => {
+const bump_repo_version = (check_pkg_result, ver_cmd, commit_sha) => {
   if (!check_pkg_result.is_equal) {
     execSync_handler('npm version from-git', 'Could not fetch latest tag from git')
   }
-  bump_with_command(ver_cmd)
+  bump_with_command(ver_cmd, commit_sha)
 }
 
 /**
  *
  * @param ver_cmd
  */
-const bump_version = (ver_cmd) => {
+const bump_version = (ver_cmd, commit_sha) => {
   let check_pkg_result = package_version_check(process.env.npm_package_version)
 
   if (ver_cmd === package_cmd) {
-    bump_with_package(check_pkg_result)
+    bump_with_package(check_pkg_result, commit_sha)
   } else {
-    bump_repo_version(check_pkg_result, ver_cmd)
+    bump_repo_version(check_pkg_result, ver_cmd, commit_sha)
   }
 }
 
@@ -185,11 +185,16 @@ if (is_working_directory_dirty()) {
 // grab the arguments
 console.log(argv._)
 
+if (!argv.sha) {
+  console.info('WARNING - it is strongly advised that you provide a commit SHA or you may not be able to push your new tags')
+}
+const commit_sha = argv.sha
+
 // if we pass args then only grab the first one, and if no arg then just use 'patch'
 const ver_cmd = (argv._ && argv._.length > 0) ? argv._[0] : 'patch'
 
 if (commands.indexOf(ver_cmd) > -1){
-  bump_version(ver_cmd)
+  bump_version(ver_cmd, commit_sha)
 } else {
   console.error('not a valid command, please choose one of : ', commands)
 }
