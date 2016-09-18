@@ -78,11 +78,13 @@ const bump_with_command = (cmd_or_version, commit_sha) => {
   try {
 
     var head_sha = execSync('git rev-parse HEAD')
+    head_sha = head_sha.trim()
 
     commit_sha = commit_sha || head_sha
 
     console.log('Finding the current branch')
     var current_branch = execSync('git rev-parse --abbrev-ref HEAD')
+    current_branch = current_branch.trim()
 
     console.log('Resetting git HEAD to point at git commit SHA')
     console.info('git update-ref -m "reset: Reset ' + current_branch + ' to ' + commit_sha + '" refs/heads/' + current_branch + ' ' + commit_sha)
