@@ -2,6 +2,9 @@
 
 // TODO : we should also expect the command to accept a commit sha which we will tag against, so we don't tag #develop directly (local HEAD may do that anyway, but lets be certain)
 
+// to get HIGHEST tag rather than LATEST tag
+// git ls-remote --tags | grep -o 'refs/tags/v[0-9]*\.[0-9]*\.[0-9]*' | sort -r | head -n 1 | grep -o '[^\/]*$'
+
 /**
  * Written to target node 6.3.0
  * Uses:
@@ -11,8 +14,6 @@
  */
 
 const argv = require('yargs').argv
-
-const execSync = require('child_process').execSync
 const semver = require('semver')
 
 const package_cmd = 'package'
@@ -58,16 +59,19 @@ const exec_options = {
  * @param message
  * @returns {*}
  */
-var execSync_handler = (command, message) => {
-  try {
-    var result = execSync(command, exec_options)
-    return result
+const execSync = (() => {
+  var processExecSync = require('child_process').execSync
+  return (command, message) => {
+    try {
+      var result = processExecSync(command, exec_options)
+      return result
+    }
+    catch (err) {
+      console.error(message, '------\n', command, '------\n')
+      throw err
+    }
   }
-  catch (err) {
-    console.error(message, '------\n', command, '------\n', err)
-    throw err
-  }
-}
+})() // self-invokes so that closure is returned with private reference to execSync
 
 /**
  * Bumps the version using the specified command or version
@@ -77,29 +81,29 @@ const bump_with_command = (cmd_or_version, commit_sha) => {
 
   try {
 
-    var head_sha = execSync('git rev-parse HEAD') + " "
+    var head_sha = execSync('git rev-parse HEAD', 'Could not fetch the commit sha of HEAD') + " "
     head_sha = head_sha.trim()
 
     commit_sha = commit_sha || head_sha
 
     console.log('Finding the current branch')
-    var current_branch = execSync('git rev-parse --abbrev-ref HEAD') + " "
+    var current_branch = execSync('git rev-parse --abbrev-ref HEAD', 'Problem finding the name of the current branch') + " "
     current_branch = current_branch.trim()
 
     console.log('Resetting git HEAD to point at git commit SHA')
     console.info('git update-ref -m "reset: Reset --' + current_branch + '-- to --' + commit_sha + '--" refs/heads/' + current_branch + ' ' + commit_sha)
-    execSync('git update-ref -m "reset: Reset ' + current_branch + ' to ' + commit_sha + '" refs/heads/' + current_branch + ' ' + commit_sha)
+    execSync('git update-ref -m "reset: Reset ' + current_branch + ' to ' + commit_sha + '" refs/heads/' + current_branch + ' ' + commit_sha, 'Problem resetting git workspace to specific commit SHA')
 
 
     // TODO: do we need to roll back attempted tag?
     console.log('Attempting to run "npm version ' + cmd_or_version + '"')
-    execSync_handler('npm version ' + cmd_or_version + ' -m "' + cmd_or_version + ' bumped tag/version to %s"', 'Could not bump version')
+    execSync('npm version ' + cmd_or_version + ' -m "' + cmd_or_version + ' bumped tag/version to %s"', 'Could not bump version')
 
     console.log('Pushing tags to repo...')
-    execSync_handler('git push --follow-tags', 'Could not push version and tags to git')
+    execSync('git push --follow-tags', 'Could not push version and tags to git')
 
     console.log('Now reset HEAD back to original SHA')
-    execSync('git reset --hard ' + head_sha)
+    execSync('git reset --hard ' + head_sha, 'Problem resetting to the original HEAD commit sha')
 
     console.info('Success!')
   }
@@ -118,7 +122,7 @@ const bump_with_command = (cmd_or_version, commit_sha) => {
  * @returns {boolean}
  */
 const is_working_directory_dirty = () => {
-  let git_status = execSync('git status --untracked-files=no --porcelain', exec_options)
+  let git_status = execSync('git status --untracked-files=no --porcelain', 'Some issue finding out if the git working directory is clean')
   return (git_status !== null && git_status !== '')
 }
 
@@ -143,7 +147,7 @@ const bump_with_package = (check_pkg_result, commit_sha) => {
 const bump_repo_version = (check_pkg_result, ver_cmd, commit_sha) => {
   if (!check_pkg_result.is_equal) {
     console.log('Local tag will be synced from repo')
-    let new_version = execSync_handler('npm version from-git', 'Could not fetch latest tag from git')
+    let new_version = execSync('npm version from-git', 'Could not fetch latest tag from git')
     console.log('New package version : ', new_version)
   }
   bump_with_command(ver_cmd, commit_sha)
@@ -170,12 +174,12 @@ const bump_version = (ver_cmd, commit_sha) => {
  * NOTE :
  * When specifying the required tag in package.json you must use semver. If you want to use pre-release versioning or build metadata
  * please refer to the documentation below
- * 
+ *
  *    http://semver.org/#spec-item-9
  *    http://semver.org/#spec-item-10
  *
  * to summarise:
- *    your pre-release tags must be of the form 
+ *    your pre-release tags must be of the form
  *        1.2.3-{a-z0-9\.}+ ie. 1.2.3-alpha, 1.2.3-alpha.1, 1.2.3-0.3.4
  *    your metadata should be of the form
  *        1.2.3+1.2.3, 1.2.3+zero.sha.1
@@ -192,7 +196,7 @@ const package_version_check = (package_version) => {
     }
   }
 
-  var latest_tag = execSync('git describe --tags --abbrev=0 `git rev-list --tags --max-count=1 --remotes`', exec_options)
+  var latest_tag = execSync('git describe --tags --abbrev=0 `git rev-list --tags --max-count=1 --remotes`', 'Experienced some problem fetching latest tag')
   latest_tag = latest_tag.trim()
 
   console.log('Testing package version and repo version')
@@ -233,3 +237,7 @@ if (commands.indexOf(ver_cmd) > -1){
   console.error('not a valid command, please choose one of : ', commands)
 }
 
+// es5 style export :(
+module.exports = {
+
+}
