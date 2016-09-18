@@ -87,7 +87,7 @@ const bump_with_command = (cmd_or_version, commit_sha) => {
     current_branch = current_branch.trim()
 
     console.log('Resetting git HEAD to point at git commit SHA')
-    console.info('git update-ref -m "reset: Reset ' + current_branch + ' to ' + commit_sha + '" refs/heads/' + current_branch + ' ' + commit_sha)
+    console.info('git update-ref -m "reset: Reset --' + current_branch + '-- to --' + commit_sha + '--" refs/heads/' + current_branch + ' ' + commit_sha)
     execSync('git update-ref -m "reset: Reset ' + current_branch + ' to ' + commit_sha + '" refs/heads/' + current_branch + ' ' + commit_sha)
 
 
